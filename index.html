@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pi Motor Stream</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            min-height: 100vh;
+            background: #0d0d0d;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ---- Header ---- */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.9rem 1.5rem;
+            background: #111;
+            border-bottom: 1px solid #222;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-left svg { flex-shrink: 0; }
+
+        .header-left h1 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            letter-spacing: 0.03em;
+        }
+
+        .header-left span {
+            font-size: 0.75rem;
+            color: #555;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        #status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            color: #888;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 20px;
+            padding: 0.3rem 0.75rem;
+        }
+
+        #status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #555;
+            transition: background 0.3s;
+        }
+
+        #status-dot.running { background: #00c8ff; box-shadow: 0 0 6px #00c8ff; }
+        #status-dot.error   { background: #ff4f4f; }
+
+        .logout-btn {
+            font-size: 0.8rem;
+            color: #555;
+            text-decoration: none;
+            padding: 0.3rem 0.75rem;
+            border: 1px solid #2a2a2a;
+            border-radius: 20px;
+            transition: color 0.2s, border-color 0.2s;
+        }
+
+        .logout-btn:hover { color: #e0e0e0; border-color: #444; }
+
+        /* ---- Main layout ---- */
+        main {
+            flex: 1;
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        /* ---- Video ---- */
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 10px;
+            overflow: hidden;
+            aspect-ratio: 4/3;
+        }
+
+        .video-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* ---- Controls card ---- */
+        .card {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 10px;
+            padding: 1.25rem 1.5rem;
+        }
+
+        .card-title {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #555;
+            margin-bottom: 1rem;
+        }
+
+        /* ---- Motor buttons ---- */
+        .motor-controls {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.65rem 1.2rem;
+            border: 1px solid #2a2a2a;
+            border-radius: 7px;
+            background: #1a1a1a;
+            color: #ccc;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+        }
+
+        .btn:hover  { background: #222; border-color: #3a3a3a; color: #fff; }
+        .btn:active { transform: scale(0.97); }
+
+        .btn.primary {
+            background: #00c8ff18;
+            border-color: #00c8ff44;
+            color: #00c8ff;
+        }
+
+        .btn.primary:hover {
+            background: #00c8ff28;
+            border-color: #00c8ff88;
+        }
+
+        .btn.danger {
+            background: #ff4f4f18;
+            border-color: #ff4f4f44;
+            color: #ff6b6b;
+        }
+
+        .btn.danger:hover {
+            background: #ff4f4f28;
+            border-color: #ff4f4f88;
+        }
+
+        /* ---- Status bar ---- */
+        #status-bar {
+            font-size: 0.82rem;
+            color: #666;
+            padding: 0.6rem 0;
+            border-top: 1px solid #1e1e1e;
+            margin-top: 1rem;
+            min-height: 2rem;
+            transition: color 0.3s;
+        }
+
+        #status-bar.ok  { color: #4caf82; }
+        #status-bar.err { color: #ff6b6b; }
+
+        /* ---- Last photo ---- */
+        #last-photo a {
+            color: #00c8ff;
+            font-size: 0.85rem;
+            text-decoration: none;
+        }
+
+        #last-photo a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <svg width="28" height="28" viewBox="0 0 44 44" fill="none">
+            <rect width="44" height="44" rx="9" fill="#1a1a1a"/>
+            <path d="M8 16a3 3 0 013-3h4l2-3h10l2 3h4a3 3 0 013 3v14a3 3 0 01-3 3H11a3 3 0 01-3-3V16z"
+                  stroke="#00c8ff" stroke-width="1.8" fill="none"/>
+            <circle cx="22" cy="23" r="5" stroke="#00c8ff" stroke-width="1.8" fill="none"/>
+            <circle cx="22" cy="23" r="2" fill="#00c8ff"/>
+        </svg>
+        <div>
+            <h1>Motor Stream</h1>
+            <span>Raspberry Pi Control Panel</span>
+        </div>
+    </div>
+    <div class="header-right">
+        <div id="status-badge">
+            <div id="status-dot"></div>
+            <span id="status-text">Idle</span>
+        </div>
+        <a href="/logout" class="logout-btn">Sign out</a>
+    </div>
+</header>
+
+<main>
+    <div class="video-wrapper">
+        <img src="/stream" alt="Video stream unavailable">
+    </div>
+
+    <div class="card">
+        <div class="card-title">Motor Control</div>
+        <div class="motor-controls">
+            <button class="btn primary" onclick="sendCommand('CW')">
+                <!-- CW arrow -->
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 3a5 5 0 104.546 2.914.5.5 0 01.908-.417A6 6 0 118 2v1z"/>
+                    <path d="M8 4.466V.534a.25.25 0 01.41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 018 4.466z"/>
+                </svg>
+                Clockwise
+            </button>
+            <button class="btn danger" onclick="sendCommand('STOP')">
+                <!-- stop square -->
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="3" y="3" width="10" height="10" rx="1"/>
+                </svg>
+                Stop
+            </button>
+            <button class="btn primary" onclick="sendCommand('CCW')">
+                <!-- CCW arrow -->
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="transform:scaleX(-1)">
+                    <path d="M8 3a5 5 0 10-4.546 2.914.5.5 0 01-.908-.417A6 6 0 118 2v1z"/>
+                    <path d="M8 4.466V.534a.25.25 0 00-.41-.192L5.23 2.308a.25.25 0 000 .384l2.36 1.966A.25.25 0 008 4.466z"/>
+                </svg>
+                Counter-Clockwise
+            </button>
+            <button class="btn" onclick="takePhoto()">
+                <!-- camera icon -->
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M15 12a1 1 0 01-1 1H2a1 1 0 01-1-1V6a1 1 0 011-1h1.172a3 3 0 002.12-.879l.83-.828A1 1 0 016.827 3h2.344a1 1 0 01.707.293l.828.828A3 3 0 0012.828 5H14a1 1 0 011 1v6zM2 4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1.172a2 2 0 01-1.414-.586l-.828-.828A2 2 0 009.172 2H6.828a2 2 0 00-1.414.586l-.828.828A2 2 0 013.172 4H2z"/>
+                    <path d="M8 11a2.5 2.5 0 110-5 2.5 2.5 0 010 5zm0 1a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"/>
+                </svg>
+                Take Photo
+            </button>
+        </div>
+
+        <div id="status-bar">Ready.</div>
+        <div id="last-photo" style="margin-top:0.5rem"></div>
+    </div>
+</main>
+
+<script>
+    const statusBar  = document.getElementById("status-bar");
+    const statusDot  = document.getElementById("status-dot");
+    const statusText = document.getElementById("status-text");
+
+    function setStatus(msg, type = "") {
+        statusBar.textContent   = msg;
+        statusBar.className     = type;
+    }
+
+    function setBadge(running) {
+        statusDot.className  = running ? "running" : "";
+        statusText.textContent = running ? "Running" : "Idle";
+    }
+
+    async function sendCommand(direction) {
+        setStatus(`Sending ${direction}…`);
+        try {
+            const res  = await fetch("/api/motor", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify({ direction }),
+            });
+            const data = await res.json();
+            setStatus(data.message || "OK", res.ok ? "ok" : "err");
+            setBadge(direction !== "STOP");
+        } catch (err) {
+            setStatus("Error: " + err, "err");
+        }
+    }
+
+    async function takePhoto() {
+        setStatus("Capturing photo…");
+        try {
+            const res  = await fetch("/api/capture", { method: "POST" });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || res.statusText);
+            setStatus(data.message || "Captured", "ok");
+            if (data.url) {
+                document.getElementById("last-photo").innerHTML =
+                    '<a href="' + data.url + '" target="_blank" rel="noopener">View last photo →</a>';
+            }
+        } catch (err) {
+            setStatus("Error: " + err, "err");
+        }
+    }
+
+    // Poll status every 3 s
+    async function pollStatus() {
+        try {
+            const res  = await fetch("/api/status");
+            const data = await res.json();
+            setBadge(data.motor_running);
+        } catch (_) {}
+    }
+
+    setInterval(pollStatus, 3000);
+</script>
+
+</body>
+</html>
